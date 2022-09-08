@@ -36,39 +36,45 @@ router.get('/currentStock', async (_: Request, res: Response) => {
 });
 
 async function getCurrentStockLevel(sku: string): Promise<ICurrentStock> {
-    return new Promise(async(resolve, reject) => {
-        let Stocks = await jsonfile.readFile(stockPath);
-        let stockFound = false
-
-        let currentStock: IStock = Stocks.find((stock: IStock) => stock.sku === sku)
-        
-        if (!currentStock) {
-            stockFound =false
-            currentStock = {
+    return new Promise((resolve, reject) => {
+        try {
+            let Stocks = jsonfile.readFileSync(stockPath);
+            let stockFound = false
+    
+            let currentStock: IStock = Stocks.find((stock: IStock) => stock.sku === sku)
+            
+            if (!currentStock) {
+                stockFound =false
+                currentStock = {
+                    sku: sku,
+                    stock: 0
+                }
+            }
+    
+            let transactionData = jsonfile.readFileSync(transactionsPath)
+            let transactions = transactionData.filter((t: ITransaction) => t.sku == sku)
+            
+            if (!stockFound && !transactions.length) {
+                return reject(Error('Sku not found'))
+            }
+    
+            transactions.forEach((transaction: ITransaction)=>{
+                if (transaction.type === 'refund') {
+                    currentStock.stock = currentStock.stock + transaction.qty
+                } else {
+                    currentStock.stock = currentStock.stock - transaction.qty
+                }
+            })
+    
+            return resolve({
                 sku: sku,
-                stock: 0
-            }
+                qty: currentStock.stock
+            })
+            
+        } catch (error) {
+            console.log(error)
+            return reject(Error('Internal server error'))
         }
-
-        let transactionData = await jsonfile.readFile(transactionsPath)
-        let transactions = transactionData.filter((t: ITransaction) => t.sku == sku)
-        
-        if (!stockFound && !transactions.length) {
-            return reject(Error('Sku not found'))
-        }
-
-        transactions.map((transaction: ITransaction)=>{
-            if (transaction.type === 'refund') {
-                currentStock.stock = currentStock.stock + transaction.qty
-            } else {
-                currentStock.stock = currentStock.stock - transaction.qty
-            }
-        })
-
-        return resolve({
-            sku: sku,
-            qty: currentStock.stock
-        })
     })
 }
 // *** Export default **** //
